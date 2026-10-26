@@ -4,7 +4,7 @@ Solves constrained non-linear (SciPy SLSQP) and discrete piecewise linear (PuLP)
 mathematical programs to maximize multi-channel revenue under diminishing returns.
 """
 
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 from scipy.optimize import minimize
@@ -15,14 +15,6 @@ from src.roi import fit_channel_response_curves, log_response_curve
 class MarketingBudgetOptimizer:
     """
     Mathematical optimization engine for multi-channel marketing budget allocation.
-    
-    Formulation:
-        Maximize Total Expected Revenue:
-            max sum_i R_i(S_i)
-        Subject to:
-            1. Total Budget constraint: sum_i S_i <= Total_Budget
-            2. Channel minimum bounds: S_i >= Min_Spend_i (preventing channel abandonment)
-            3. Channel maximum capacity: S_i <= Max_Spend_i (preventing over-saturation)
     """
 
     def __init__(self, response_curves: Optional[Dict[str, Dict[str, float]]] = None):
@@ -42,16 +34,6 @@ class MarketingBudgetOptimizer:
     ) -> Dict[str, Any]:
         """
         Solves the non-linear continuous optimization problem using SciPy SLSQP.
-        Compares optimal results against Baseline 1 (Historical Split) and Baseline 2 (Equal Split).
-
-        Args:
-            total_budget: Total budget to allocate ($).
-            channel_bounds: Dict of channel -> (min_spend, max_spend).
-            response_curves: Dict of channel -> {alpha, beta, historical_spend}.
-            historical_spend_dict: Dict of historical spend per channel for baseline comparison.
-
-        Returns:
-            Dict[str, Any]: Comprehensive allocation recommendations and baseline comparisons.
         """
         curves = response_curves or self.response_curves
         if not curves or total_budget <= 0:
@@ -60,19 +42,15 @@ class MarketingBudgetOptimizer:
         channels = sorted(list(curves.keys()))
         n = len(channels)
 
-        # 1. Establish Channel Bounds
         bounds = []
         for c in channels:
             if channel_bounds and c in channel_bounds:
                 b_min, b_max = channel_bounds[c]
             else:
-                # Default bounds: 5% min, 45% max
                 b_min = total_budget * 0.05
                 b_max = total_budget * 0.50
             bounds.append((max(0.0, float(b_min)), float(b_max)))
 
-        # 2. Establish Baseline Allocations
-        # Baseline 1: Historical spend distribution scaled to total budget
         if historical_spend_dict:
             hist_raw = np.array([max(0.0, historical_spend_dict.get(c, 0.0)) for c in channels])
         else:
@@ -80,15 +58,11 @@ class MarketingBudgetOptimizer:
         
         hist_total = float(hist_raw.sum()) or 1.0
         baseline1_spend = (hist_raw / hist_total) * total_budget
-
-        # Baseline 2: Equal split allocation
         baseline2_spend = np.full(n, total_budget / n)
 
-        # Initial guess: clipped baseline 1 normalized
         x0 = np.clip(baseline1_spend, [b[0] for b in bounds], [b[1] for b in bounds])
         x0 = x0 * (total_budget / np.sum(x0))
 
-        # 3. Define Objective Function: Maximize total revenue => Minimize negative revenue
         def objective(x):
             tot_rev = 0.0
             for i, c in enumerate(channels):
@@ -97,12 +71,8 @@ class MarketingBudgetOptimizer:
                 tot_rev += log_response_curve(x[i], alpha, beta)
             return -tot_rev
 
-        # Constraint: sum(x) == total_budget
-        constraints = [
-            {"type": "eq", "fun": lambda x: np.sum(x) - total_budget}
-        ]
+        constraints = [{"type": "eq", "fun": lambda x: np.sum(x) - total_budget}]
 
-        # Solve via SLSQP
         res = minimize(
             objective,
             x0=x0,
@@ -114,21 +84,18 @@ class MarketingBudgetOptimizer:
 
         optimal_spend = res.x if res.success else x0
         optimal_spend = np.maximum(optimal_spend, 0.0)
-        optimal_spend = optimal_spend * (total_budget / np.sum(optimal_spend))  # Exact normalizer
+        optimal_spend = optimal_spend * (total_budget / np.sum(optimal_spend))
 
-        # 4. Compute Projected Revenues
         opt_revenue = float(-objective(optimal_spend))
         base1_revenue = float(-objective(baseline1_spend))
         base2_revenue = float(-objective(baseline2_spend))
 
-        # 5. Incremental Lifts
         lift_vs_base1 = opt_revenue - base1_revenue
         lift_pct_vs_base1 = (lift_vs_base1 / base1_revenue * 100.0) if base1_revenue > 0 else 0.0
 
         lift_vs_base2 = opt_revenue - base2_revenue
         lift_pct_vs_base2 = (lift_vs_base2 / base2_revenue * 100.0) if base2_revenue > 0 else 0.0
 
-        # 6. Build Detailed Comparison Table
         comparison_records = []
         for i, c in enumerate(channels):
             opt_s = float(optimal_spend[i])
@@ -156,7 +123,6 @@ class MarketingBudgetOptimizer:
             })
 
         comparison_df = pd.DataFrame(comparison_records)
-
         optimal_dict = {c: round(float(optimal_spend[i]), 2) for i, c in enumerate(channels)}
 
         return {
@@ -191,16 +157,6 @@ class MarketingBudgetOptimizer:
     ) -> Dict[str, Any]:
         """
         Solves a piecewise linear approximation of the diminishing returns budget allocation problem using PuLP.
-
-        Args:
-            total_budget: Total budget to allocate ($).
-            channel_candidates: Optional list of channels to include.
-            channel_bounds: Dict of channel -> (min_spend, max_spend).
-            response_curves: Dict of fitted channel curve parameters.
-            n_segments: Number of linear segments per channel curve (default 5).
-
-        Returns:
-            Dict[str, Any]: PuLP optimization solution dictionary.
         """
         curves = response_curves or self.response_curves
         if not curves or total_budget <= 0:
@@ -208,10 +164,8 @@ class MarketingBudgetOptimizer:
 
         channels = sorted(channel_candidates) if channel_candidates else sorted(list(curves.keys()))
 
-        # Define PuLP LP problem
         prob = pulp.LpProblem("Marketing_Budget_Allocation_PuLP", pulp.LpMaximize)
 
-        # Variables for channel spend
         spend_vars = {}
         segment_vars = {}
 
@@ -224,7 +178,6 @@ class MarketingBudgetOptimizer:
 
             spend_vars[c] = pulp.LpVariable(f"Spend_{c}", lowBound=b_min, upBound=b_max, cat=pulp.LpContinuous)
 
-            # Piecewise linear segments for concave log curve
             segment_width = (b_max - b_min) / n_segments
             segment_vars[c] = []
 
@@ -241,22 +194,18 @@ class MarketingBudgetOptimizer:
                 var_seg = pulp.LpVariable(f"Seg_{c}_{seg_idx}", lowBound=0.0, upBound=segment_width, cat=pulp.LpContinuous)
                 segment_vars[c].append((var_seg, marginal_slope, r_start))
 
-        # Objective: Maximize sum of piecewise revenue gains
         objective_terms = []
         for c in channels:
             for var_seg, slope, _ in segment_vars[c]:
                 objective_terms.append(slope * var_seg)
         prob += pulp.lpSum(objective_terms)
 
-        # Budget constraint: sum of all spend == total_budget
         prob += pulp.lpSum([spend_vars[c] for c in channels]) <= total_budget
 
-        # Connect segment variables to total spend per channel
         for c in channels:
             b_min = channel_bounds[c][0] if (channel_bounds and c in channel_bounds) else (total_budget * 0.05)
             prob += spend_vars[c] == b_min + pulp.lpSum([var_seg for var_seg, _, _ in segment_vars[c]])
 
-        # Solve using default PuLP CBC solver
         solver = pulp.PULP_CBC_CMD(msg=False)
         status = prob.solve(solver)
 
@@ -279,7 +228,6 @@ class MarketingBudgetOptimizer:
         }
 
 
-# Modular functions
 def optimize_budget_continuous(
     total_budget: float,
     channel_bounds: Optional[Dict[str, Tuple[float, float]]] = None,

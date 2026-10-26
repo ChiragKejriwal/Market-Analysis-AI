@@ -3,13 +3,9 @@ Page 3: Conversion Funnel & Customer Acquisition Cohorts
 """
 
 import streamlit as st
-import pandas as pd
-from src.data_loader import load_marketing_data
-from src.preprocessing import clean_and_enrich_data
 from src.funnel import build_funnel_stages, get_channel_funnel_comparison
-from src.cohort import build_acquisition_cohorts, generate_cohort_matrix
+from src.cohort import build_acquisition_cohorts
 from src.visualization import plot_interactive_funnel, plot_cohort_heatmap
-
 from src.ui_components import render_sidebar_header, ensure_page_data_loaded
 
 st.set_page_config(
@@ -20,11 +16,8 @@ st.set_page_config(
 
 # Ensure dataset is cleanly loaded with animated loader
 df, raw_df = ensure_page_data_loaded(page_title="Conversion Funnel & Cohorts")
-
-# Render Sidebar Branding, Live Telemetry & CSV Ingestion
 render_sidebar_header(active_page_title="Conversion Funnel")
 
-# Custom Styling
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
@@ -81,7 +74,6 @@ with f_col2:
         use_container_width=True
     )
 
-    # Identify and flag maximum drop-off bottleneck
     if len(funnel_df) > 1:
         drop_steps = funnel_df.iloc[1:].copy()
         max_drop_row = drop_steps.loc[drop_steps["Drop_Off_Rate"].idxmax()]
@@ -94,9 +86,9 @@ with f_col2:
                 ⚠️ Critical Bottleneck Detected: {stage_name}
             </h5>
             <p style="color: #E2E8F0; font-size: 0.9rem; margin: 0; line-height: 1.5;">
-                This transition experiences the highest customer attrition in the portfolio with a 
+                This transition experiences the highest customer attrition with a 
                 <strong>{drop_pct:.1f}% drop-off rate</strong>. Recommended interventions: landing page UX optimization, 
-                streamlined checkout flows, and targeted intent retargeting.
+                streamlined checkout flows, and targeted retargeting.
             </p>
         </div>
         """, unsafe_allow_html=True)

@@ -3,17 +3,11 @@ Page 2: Campaign Drill-Down & Causal A/B Experimentation Playground
 """
 
 import streamlit as st
-import pandas as pd
-from src.data_loader import load_marketing_data
-from src.preprocessing import clean_and_enrich_data
 from src.ab_testing import (
     run_two_proportion_test,
-    run_proportion_ab_test,
-    evaluate_campaign_experiments,
-    compare_campaign_variants
+    evaluate_campaign_experiments
 )
 from src.visualization import plot_ab_test_ci
-
 from src.ui_components import render_sidebar_header, ensure_page_data_loaded
 
 st.set_page_config(
@@ -24,56 +18,7 @@ st.set_page_config(
 
 # Ensure dataset is cleanly loaded with animated loader
 df, raw_df = ensure_page_data_loaded(page_title="Campaigns & A/B Testing Lab")
-
-# Render Sidebar Branding, Live Telemetry & CSV Ingestion
 render_sidebar_header(active_page_title="Campaigns & A/B Testing")
-
-# Custom Styling
-st.markdown("""
-<style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
-    html, body, [class*="css"] {
-        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-    }
-    .badge-win {
-        display: inline-block;
-        padding: 0.4rem 1rem;
-        border-radius: 8px;
-        font-weight: 700;
-        font-size: 0.95rem;
-        background: rgba(52, 211, 153, 0.15);
-        border: 1px solid #34D399;
-        color: #34D399;
-    }
-    .badge-inconclusive {
-        display: inline-block;
-        padding: 0.4rem 1rem;
-        border-radius: 8px;
-        font-weight: 700;
-        font-size: 0.95rem;
-        background: rgba(129, 140, 248, 0.15);
-        border: 1px solid #818CF8;
-        color: #818CF8;
-    }
-    .badge-loss {
-        display: inline-block;
-        padding: 0.4rem 1rem;
-        border-radius: 8px;
-        font-weight: 700;
-        font-size: 0.95rem;
-        background: rgba(248, 113, 113, 0.15);
-        border: 1px solid #F87171;
-        color: #F87171;
-    }
-    .stat-card {
-        background: rgba(30, 41, 59, 0.65);
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        border-radius: 12px;
-        padding: 1rem 1.25rem;
-        margin-bottom: 0.75rem;
-    }
-</style>
-""", unsafe_allow_html=True)
 
 st.title("🔬 Campaign Explorer & Causal A/B Testing Playground")
 st.markdown("Evaluate campaign performance granularly and test treatment effects with statistical significance testing.")
@@ -103,7 +48,6 @@ if sel_channel != "All":
 if sel_audience != "All" and "Target_Audience" in drill_df.columns:
     drill_df = drill_df[drill_df["Target_Audience"] == sel_audience]
 
-# Sortable table with CTR, CPC, CPA, and ROAS using native high-performance column_config
 display_drill_cols = [c for c in ["Campaign_ID", "Campaign_Type", "Channel_Used", "Target_Audience", "Spend", "Revenue", "Impressions", "Clicks", "Conversions", "CTR", "CPC", "CPA", "ROAS"] if c in drill_df.columns]
 
 st.dataframe(
@@ -128,7 +72,6 @@ st.markdown("---")
 st.subheader("🧪 Interactive A/B Experimentation Playground")
 st.markdown("Rigorous two-proportion statistical significance testing to validate true incremental lift across creatives, audiences, and channels.")
 
-# Mode & Dimension Selection
 ctl_col1, ctl_col2, ctl_col3 = st.columns([1.5, 1.2, 1])
 
 with ctl_col1:
@@ -151,7 +94,6 @@ if ab_mode == "Select from Active Campaigns / Channels":
             index=0
         )
 
-    # Variant Selection Cards
     v_col1, v_col2 = st.columns(2)
 
     with v_col1:
@@ -264,7 +206,6 @@ else:
     power = test_res["statistical_power"]
     conf_pct = (1.0 - alpha_level) * 100
 
-    # Executive Verdict Card
     if verdict == "Statistically Significant Winner":
         v_class = "ab-verdict-win"
         v_icon = "🚀"
@@ -304,7 +245,6 @@ else:
     </div>
     """, unsafe_allow_html=True)
 
-    # 4 Key Metric Panels
     k1, k2, k3, k4 = st.columns(4)
 
     with k1:
@@ -346,7 +286,6 @@ else:
 
     st.write("")
 
-    # Visual Forest Plot & Decision Metrics Split
     res_col1, res_col2 = st.columns([1.4, 1])
 
     with res_col1:

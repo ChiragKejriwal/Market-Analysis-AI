@@ -4,27 +4,14 @@ Calculates global blended KPIs, channel efficiency tables, Customer Acquisition 
 and Customer Lifetime Value (CLV) models.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Dict, Optional
 import numpy as np
 import pandas as pd
 
 
 def calculate_global_kpis(df: pd.DataFrame) -> Dict[str, float]:
     """
-    Computes global portfolio-level marketing financial and efficiency metrics:
-    - Total Spend ($)
-    - Total Revenue ($)
-    - Blended ROAS (Revenue / Spend)
-    - Blended ROI ((Revenue - Spend) / Spend)
-    - Blended CAC (Total Spend / Total Conversions)
-    - Overall CTR (Total Clicks / Total Impressions)
-    - Conversion Rate (Total Conversions / Total Clicks)
-
-    Args:
-        df: Enriched marketing campaign DataFrame.
-
-    Returns:
-        Dict[str, float]: Dictionary of global KPI metrics.
+    Computes global portfolio-level marketing financial and efficiency metrics.
     """
     if df is None or df.empty:
         return {
@@ -63,12 +50,6 @@ def calculate_global_kpis(df: pd.DataFrame) -> Dict[str, float]:
 def calculate_channel_kpis(df: pd.DataFrame) -> pd.DataFrame:
     """
     Aggregates metrics by Channel_Used: Spend, Conversions, Revenue, CAC, ROAS, ROI, and Avg Order Value (AOV).
-
-    Args:
-        df: Enriched marketing campaign DataFrame.
-
-    Returns:
-        pd.DataFrame: Channel summary table sorted by Revenue descending.
     """
     if df is None or df.empty or "Channel_Used" not in df.columns:
         return pd.DataFrame(columns=["Channel_Used", "Spend", "Conversions", "Revenue", "CAC", "ROAS", "ROI", "AOV"])
@@ -81,29 +62,10 @@ def calculate_channel_kpis(df: pd.DataFrame) -> pd.DataFrame:
         Impressions=("Impressions", "sum") if "Impressions" in df.columns else ("Spend", "count")
     ).reset_index()
 
-    grouped["CAC"] = np.where(
-        grouped["Conversions"] > 0,
-        (grouped["Spend"] / grouped["Conversions"]).round(2),
-        0.0
-    )
-
-    grouped["ROAS"] = np.where(
-        grouped["Spend"] > 0,
-        (grouped["Revenue"] / grouped["Spend"]).round(2),
-        0.0
-    )
-
-    grouped["ROI"] = np.where(
-        grouped["Spend"] > 0,
-        ((grouped["Revenue"] - grouped["Spend"]) / grouped["Spend"]).round(2),
-        0.0
-    )
-
-    grouped["AOV"] = np.where(
-        grouped["Conversions"] > 0,
-        (grouped["Revenue"] / grouped["Conversions"]).round(2),
-        0.0
-    )
+    grouped["CAC"] = np.where(grouped["Conversions"] > 0, (grouped["Spend"] / grouped["Conversions"]).round(2), 0.0)
+    grouped["ROAS"] = np.where(grouped["Spend"] > 0, (grouped["Revenue"] / grouped["Spend"]).round(2), 0.0)
+    grouped["ROI"] = np.where(grouped["Spend"] > 0, ((grouped["Revenue"] - grouped["Spend"]) / grouped["Spend"]).round(2), 0.0)
+    grouped["AOV"] = np.where(grouped["Conversions"] > 0, (grouped["Revenue"] / grouped["Conversions"]).round(2), 0.0)
 
     return grouped.sort_values(by="Revenue", ascending=False).reset_index(drop=True)
 
@@ -117,15 +79,6 @@ def calculate_clv(
     """
     Estimates Customer Lifetime Value (CLV) and the CLV/CAC ratio per channel:
     CLV = (AOV * Purchase_Frequency * Margin) / Churn_Rate
-
-    Args:
-        df: Enriched marketing campaign DataFrame.
-        margin_rate: Gross profit margin percentage (default 0.40 or 40%).
-        churn_rate: Annual customer churn rate (default 0.15 or 15%).
-        purchase_frequency: Optional fixed annual purchase frequency (defaults to channel-calibrated frequency).
-
-    Returns:
-        pd.DataFrame: CLV and unit economics table per marketing channel.
     """
     channel_kpis = calculate_channel_kpis(df)
     if channel_kpis.empty:
@@ -133,7 +86,6 @@ def calculate_clv(
 
     clv_df = channel_kpis.copy()
 
-    # Channel-specific purchase frequency multipliers if not fixed
     channel_freq_map = {
         "Email": 3.2,
         "Organic Search": 2.6,
@@ -151,21 +103,18 @@ def calculate_clv(
     clv_df["Margin_Rate"] = margin_rate
     clv_df["Churn_Rate"] = churn_rate
 
-    # CLV = (AOV * Purchase_Frequency * margin_rate) / churn_rate
     clv_df["CLV"] = np.where(
         churn_rate > 0,
         ((clv_df["AOV"] * clv_df["Purchase_Frequency"] * margin_rate) / churn_rate).round(2),
         0.0
     )
 
-    # CLV / CAC Ratio
     clv_df["CLV_to_CAC_Ratio"] = np.where(
         clv_df["CAC"] > 0,
         (clv_df["CLV"] / clv_df["CAC"]).round(2),
         0.0
     )
 
-    # Health status tag based on industry SaaS/E-commerce benchmark (CLV:CAC > 3.0 is healthy)
     clv_df["Unit_Economics_Health"] = np.where(
         clv_df["CLV_to_CAC_Ratio"] >= 3.0,
         "Strong (>= 3.0x)",
@@ -203,7 +152,7 @@ def compute_time_series_metrics(
     freq: str = "W",
     group_col: Optional[str] = None
 ) -> pd.DataFrame:
-    """Aggregates performance metrics over time (Daily 'D', Weekly 'W', or Monthly 'M')."""
+    """Aggregates performance metrics over time."""
     if df is None or df.empty or "Date" not in df.columns:
         return pd.DataFrame()
 

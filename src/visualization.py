@@ -4,14 +4,13 @@ Modern, high-contrast, executive-ready charts built on a consistent dark theme (
 with vibrant accents (#38bdf8, #818cf8, #34d399, #f59e0b, #f87171).
 """
 
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, Optional, Union
 import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
-# Exact Theme Palette
 DARK_BG = "#0f172a"
 PAPER_BG = "rgba(15, 23, 42, 0.75)"
 PLOT_BG = "rgba(15, 23, 42, 0.5)"
@@ -92,7 +91,7 @@ def plot_executive_kpis(kpi_dict: Dict[str, Any]) -> go.Figure:
 
 def plot_interactive_funnel(funnel_df: pd.DataFrame) -> go.Figure:
     """
-    Renders a modern Plotly Funnel chart with gradient steps and drop-off annotations.
+    Renders a Plotly Funnel chart with drop-off annotations.
     """
     if funnel_df is None or funnel_df.empty:
         fig = go.Figure()
@@ -132,14 +131,13 @@ def plot_interactive_funnel(funnel_df: pd.DataFrame) -> go.Figure:
 
 def plot_cohort_heatmap(cohort_df: pd.DataFrame) -> go.Figure:
     """
-    Renders a 2D heatmap of cohort conversion/retention over time.
+    Renders a 2D heatmap of cohort retention over time.
     """
     if cohort_df is None or cohort_df.empty:
         fig = go.Figure()
         fig.update_layout(title="No Cohort Data Available", template="plotly_dark")
         return fig
 
-    # If tabular DataFrame without pivot
     if "CohortMonth" in cohort_df.columns and "Period_Index" in cohort_df.columns:
         from src.cohort import generate_cohort_matrix
         matrix = generate_cohort_matrix(cohort_df, metric="retention")
@@ -151,7 +149,6 @@ def plot_cohort_heatmap(cohort_df: pd.DataFrame) -> go.Figure:
         fig.update_layout(title="No Cohort Retention Data Available", template="plotly_dark")
         return fig
 
-    # Build custom text with % symbol for non-null cells
     text_matrix = matrix.map(lambda v: f"{v:.1f}%" if pd.notnull(v) else "")
 
     fig = px.imshow(
@@ -188,7 +185,7 @@ def plot_cohort_heatmap(cohort_df: pd.DataFrame) -> go.Figure:
 
 def plot_ab_test_ci(test_results: Union[Dict[str, Any], pd.DataFrame]) -> go.Figure:
     """
-    Renders an executive-grade Forest Plot showing statistical effect size with 95% Confidence Interval error bars.
+    Renders a Forest Plot showing statistical effect size with 95% Confidence Interval error bars.
     """
     fig = go.Figure()
 
@@ -206,7 +203,6 @@ def plot_ab_test_ci(test_results: Union[Dict[str, Any], pd.DataFrame]) -> go.Fig
 
         color = "#34D399" if (is_sig and abs_lift > 0) else ("#FB7185" if (is_sig and abs_lift < 0) else "#818CF8")
 
-        # Forest plot marker with error bars
         fig.add_trace(
             go.Scatter(
                 x=[abs_lift],
@@ -232,12 +228,10 @@ def plot_ab_test_ci(test_results: Union[Dict[str, Any], pd.DataFrame]) -> go.Fig
             )
         )
 
-        # Compute dynamic x-axis bounds
         max_dist = max(abs(ci_low), abs(ci_high), abs(abs_lift), 0.1) * 1.6
         x_range = [-max_dist, max_dist]
 
     elif isinstance(test_results, pd.DataFrame) and not test_results.empty:
-        # Multiple experiments forest plot
         for idx, row in test_results.iterrows():
             lift = float(row.get("Relative_Lift_Pct", 0.0))
             label = f"{row.get('Channel', '')} ({row.get('Treatment_Group', '')})"
@@ -261,7 +255,6 @@ def plot_ab_test_ci(test_results: Union[Dict[str, Any], pd.DataFrame]) -> go.Fig
     else:
         x_range = None
 
-    # Zero-Effect Reference Line
     fig.add_vline(
         x=0.0,
         line_width=2,
@@ -308,7 +301,6 @@ def plot_response_curves(
         fig.update_layout(title="No Response Curves Available", template="plotly_dark")
         return fig
 
-    # Determine max spend span
     if max_spend is None:
         all_spends = []
         if current_spend:
@@ -323,50 +315,32 @@ def plot_response_curves(
         alpha = params["alpha"]
         beta = params["beta"]
         rev_curve = alpha * np.log1p(beta * spend_range)
-
         color = VIBRANT_PALETTE[idx % len(VIBRANT_PALETTE)]
 
-        # Response curve line
         fig.add_trace(
-            go.Scatter(
-                x=spend_range,
-                y=rev_curve,
-                name=channel,
-                mode="lines",
-                line=dict(color=color, width=2.5)
-            )
+            go.Scatter(x=spend_range, y=rev_curve, name=channel, mode="lines", line=dict(color=color, width=2.5))
         )
 
-        # Plot Current allocation point
         if current_spend and channel in current_spend:
             c_s = float(current_spend[channel])
             c_r = float(alpha * np.log1p(beta * c_s))
             fig.add_trace(
                 go.Scatter(
-                    x=[c_s],
-                    y=[c_r],
-                    mode="markers",
+                    x=[c_s], y=[c_r], mode="markers",
                     marker=dict(symbol="circle", size=9, color=color, line=dict(color="#ffffff", width=1.5)),
-                    name=f"{channel} (Current)",
-                    showlegend=False,
-                    hoverinfo="text",
+                    name=f"{channel} (Current)", showlegend=False, hoverinfo="text",
                     text=[f"<b>{channel} [Current]</b><br>Spend: ${c_s:,.0f}<br>Projected Rev: ${c_r:,.0f}"]
                 )
             )
 
-        # Plot Optimal allocation point
         if optimal_spend and channel in optimal_spend:
             o_s = float(optimal_spend[channel])
             o_r = float(alpha * np.log1p(beta * o_s))
             fig.add_trace(
                 go.Scatter(
-                    x=[o_s],
-                    y=[o_r],
-                    mode="markers",
+                    x=[o_s], y=[o_r], mode="markers",
                     marker=dict(symbol="star", size=13, color=color, line=dict(color="#ffffff", width=1.5)),
-                    name=f"{channel} (Optimal)",
-                    showlegend=False,
-                    hoverinfo="text",
+                    name=f"{channel} (Optimal)", showlegend=False, hoverinfo="text",
                     text=[f"<b>{channel} [Optimal ★]</b><br>Spend: ${o_s:,.0f}<br>Projected Rev: ${o_r:,.0f}"]
                 )
             )
@@ -390,8 +364,7 @@ def plot_simulation_distribution(
     baseline_revenue: Optional[float] = None
 ) -> go.Figure:
     """
-    Renders empirical Monte Carlo revenue distribution with VaR (95%), CVaR (95%),
-    and Baseline cutoff vertical lines.
+    Renders Monte Carlo revenue distribution with VaR (95%) and CVaR (95%).
     """
     totals = sim_results.get("simulated_totals", np.array([]))
     if len(totals) == 0:
@@ -401,65 +374,34 @@ def plot_simulation_distribution(
 
     mean_rev = sim_results.get("mean_revenue", float(np.mean(totals)))
     p05 = sim_results.get("ci_90", (float(np.percentile(totals, 5)), float(np.percentile(totals, 95))))[0]
-    p95 = sim_results.get("ci_90", (float(np.percentile(totals, 5)), float(np.percentile(totals, 95))))[1]
     var_95 = sim_results.get("var_95", max(0.0, mean_rev - p05))
     cvar_95 = sim_results.get("cvar_95", var_95)
 
     fig = go.Figure()
-
-    # Empirical histogram
     fig.add_trace(
-        go.Histogram(
-            x=totals,
-            name="Simulated Revenue Trajectories",
-            marker_color="#818cf8",
-            opacity=0.8,
-            nbinsx=45
-        )
+        go.Histogram(x=totals, name="Simulated Revenue", marker_color="#818cf8", opacity=0.8, nbinsx=45)
     )
 
-    # 1. Expected Mean Line
     fig.add_vline(
-        x=mean_rev,
-        line_width=2.5,
-        line_color="#34d399",
-        line_dash="solid",
-        annotation_text=f"Expected Mean: ${mean_rev:,.0f}",
-        annotation_position="top right",
+        x=mean_rev, line_width=2.5, line_color="#34d399", line_dash="solid",
+        annotation_text=f"Expected Mean: ${mean_rev:,.0f}", annotation_position="top right",
         annotation_font=dict(color="#34d399", size=11, family=FONT_FAMILY)
     )
-
-    # 2. VaR 95% Line (5th percentile)
     fig.add_vline(
-        x=p05,
-        line_width=2,
-        line_color="#f87171",
-        line_dash="dash",
-        annotation_text=f"95% VaR: -${var_95:,.0f} (${p05:,.0f})",
-        annotation_position="top left",
+        x=p05, line_width=2, line_color="#f87171", line_dash="dash",
+        annotation_text=f"95% VaR: -${var_95:,.0f} (${p05:,.0f})", annotation_position="top left",
         annotation_font=dict(color="#f87171", size=10, family=FONT_FAMILY)
     )
-
-    # 3. CVaR 95% Cutoff
     fig.add_vline(
-        x=mean_rev - cvar_95,
-        line_width=2,
-        line_color="#f59e0b",
-        line_dash="dot",
-        annotation_text=f"95% CVaR: -${cvar_95:,.0f}",
-        annotation_position="bottom left",
+        x=mean_rev - cvar_95, line_width=2, line_color="#f59e0b", line_dash="dot",
+        annotation_text=f"95% CVaR: -${cvar_95:,.0f}", annotation_position="bottom left",
         annotation_font=dict(color="#f59e0b", size=10, family=FONT_FAMILY)
     )
 
-    # 4. Optional Baseline Cutoff Line
     if baseline_revenue and baseline_revenue > 0:
         fig.add_vline(
-            x=baseline_revenue,
-            line_width=2,
-            line_color="#38bdf8",
-            line_dash="dashdot",
-            annotation_text=f"Historical Baseline: ${baseline_revenue:,.0f}",
-            annotation_position="bottom right",
+            x=baseline_revenue, line_width=2, line_color="#38bdf8", line_dash="dashdot",
+            annotation_text=f"Historical Baseline: ${baseline_revenue:,.0f}", annotation_position="bottom right",
             annotation_font=dict(color="#38bdf8", size=10, family=FONT_FAMILY)
         )
 
@@ -486,26 +428,17 @@ def plot_revenue_spend_dual_axis(ts_df: pd.DataFrame) -> go.Figure:
         return fig
 
     fig = make_subplots(specs=[[{"secondary_y": True}]])
-
     fig.add_trace(
         go.Bar(
-            x=ts_df["Date"],
-            y=ts_df["Spend"],
-            name="Marketing Spend ($)",
-            marker_color="rgba(99, 102, 241, 0.65)",
-            marker_line=dict(width=1, color="#818cf8")
+            x=ts_df["Date"], y=ts_df["Spend"], name="Marketing Spend ($)",
+            marker_color="rgba(99, 102, 241, 0.65)", marker_line=dict(width=1, color="#818cf8")
         ),
         secondary_y=False
     )
-
     fig.add_trace(
         go.Scatter(
-            x=ts_df["Date"],
-            y=ts_df["Revenue"],
-            name="Attributed Revenue ($)",
-            mode="lines+markers",
-            line=dict(color="#34d399", width=3),
-            marker=dict(size=6, color="#34d399")
+            x=ts_df["Date"], y=ts_df["Revenue"], name="Attributed Revenue ($)",
+            mode="lines+markers", line=dict(color="#34d399", width=3), marker=dict(size=6, color="#34d399")
         ),
         secondary_y=True
     )
@@ -523,7 +456,6 @@ def plot_revenue_spend_dual_axis(ts_df: pd.DataFrame) -> go.Figure:
     )
     fig.update_yaxes(title_text="Marketing Spend ($)", showgrid=True, gridcolor=GRID_COLOR, secondary_y=False)
     fig.update_yaxes(title_text="Revenue ($)", showgrid=False, secondary_y=True)
-
     return fig
 
 
@@ -544,10 +476,7 @@ def plot_channel_share_donuts(channel_df: pd.DataFrame) -> go.Figure:
         go.Pie(
             labels=channel_df["Channel_Used"],
             values=channel_df["Total_Spend"] if "Total_Spend" in channel_df.columns else channel_df["Spend"],
-            hole=0.45,
-            marker_colors=VIBRANT_PALETTE,
-            textinfo="percent+label",
-            name="Spend Share"
+            hole=0.45, marker_colors=VIBRANT_PALETTE, textinfo="percent+label", name="Spend Share"
         ),
         row=1, col=1
     )
@@ -556,10 +485,7 @@ def plot_channel_share_donuts(channel_df: pd.DataFrame) -> go.Figure:
         go.Pie(
             labels=channel_df["Channel_Used"],
             values=channel_df["Total_Revenue"] if "Total_Revenue" in channel_df.columns else channel_df["Revenue"],
-            hole=0.45,
-            marker_colors=VIBRANT_PALETTE,
-            textinfo="percent+label",
-            name="Revenue Share"
+            hole=0.45, marker_colors=VIBRANT_PALETTE, textinfo="percent+label", name="Revenue Share"
         ),
         row=1, col=2
     )
@@ -574,7 +500,6 @@ def plot_channel_share_donuts(channel_df: pd.DataFrame) -> go.Figure:
     return fig
 
 
-# Backward compatibility aliases
 plot_revenue_spend_trend = plot_revenue_spend_dual_axis
 plot_funnel_chart = plot_interactive_funnel
 plot_diminishing_returns_curves = plot_response_curves
@@ -590,29 +515,19 @@ def plot_channel_roas_bar(channel_df: pd.DataFrame) -> go.Figure:
         return fig
 
     fig = go.Figure()
-
     spend_col = "Total_Spend" if "Total_Spend" in channel_df.columns else "Spend"
     rev_col = "Total_Revenue" if "Total_Revenue" in channel_df.columns else "Revenue"
 
     fig.add_trace(
         go.Bar(
-            x=channel_df["Channel_Used"],
-            y=channel_df[rev_col],
-            name="Revenue ($)",
-            marker_color="#34d399",
-            text=[f"${v:,.0f}" for v in channel_df[rev_col]],
-            textposition="auto"
+            x=channel_df["Channel_Used"], y=channel_df[rev_col], name="Revenue ($)",
+            marker_color="#34d399", text=[f"${v:,.0f}" for v in channel_df[rev_col]], textposition="auto"
         )
     )
-
     fig.add_trace(
         go.Bar(
-            x=channel_df["Channel_Used"],
-            y=channel_df[spend_col],
-            name="Spend ($)",
-            marker_color="#818cf8",
-            text=[f"${v:,.0f}" for v in channel_df[spend_col]],
-            textposition="auto"
+            x=channel_df["Channel_Used"], y=channel_df[spend_col], name="Spend ($)",
+            marker_color="#818cf8", text=[f"${v:,.0f}" for v in channel_df[spend_col]], textposition="auto"
         )
     )
 
@@ -639,26 +554,16 @@ def plot_budget_optimization_comparison(comparison_df: pd.DataFrame) -> go.Figur
         return fig
 
     fig = go.Figure()
-
     fig.add_trace(
         go.Bar(
-            x=comparison_df["Channel"],
-            y=comparison_df["Current_Spend"],
-            name="Current Spend ($)",
-            marker_color="#818cf8",
-            text=[f"${v:,.0f}" for v in comparison_df["Current_Spend"]],
-            textposition="auto"
+            x=comparison_df["Channel"], y=comparison_df["Current_Spend"], name="Current Spend ($)",
+            marker_color="#818cf8", text=[f"${v:,.0f}" for v in comparison_df["Current_Spend"]], textposition="auto"
         )
     )
-
     fig.add_trace(
         go.Bar(
-            x=comparison_df["Channel"],
-            y=comparison_df["Optimized_Spend"],
-            name="Optimized Spend ($)",
-            marker_color="#34d399",
-            text=[f"${v:,.0f}" for v in comparison_df["Optimized_Spend"]],
-            textposition="auto"
+            x=comparison_df["Channel"], y=comparison_df["Optimized_Spend"], name="Optimized Spend ($)",
+            marker_color="#34d399", text=[f"${v:,.0f}" for v in comparison_df["Optimized_Spend"]], textposition="auto"
         )
     )
 
@@ -678,10 +583,7 @@ def plot_budget_optimization_comparison(comparison_df: pd.DataFrame) -> go.Figur
 
 
 def plot_channel_reallocation_delta(comparison_df: pd.DataFrame) -> go.Figure:
-    """
-    Renders a bar chart of spend deltas showing which channels get funded (positive delta) 
-    and which get defunded (negative delta).
-    """
+    """Renders a bar chart of spend deltas showing funded vs. defunded shifts."""
     if comparison_df is None or comparison_df.empty:
         fig = go.Figure()
         fig.update_layout(title="No Allocation Data", template="plotly_dark")
@@ -692,16 +594,11 @@ def plot_channel_reallocation_delta(comparison_df: pd.DataFrame) -> go.Figure:
 
     fig = go.Figure(
         go.Bar(
-            x=comparison_df["Channel"],
-            y=deltas,
-            marker_color=colors,
-            text=[f"{'+' if d > 0 else ''}${d:,.0f}" for d in deltas],
-            textposition="auto"
+            x=comparison_df["Channel"], y=deltas, marker_color=colors,
+            text=[f"{'+' if d > 0 else ''}${d:,.0f}" for d in deltas], textposition="auto"
         )
     )
-
     fig.add_hline(y=0, line_width=1.5, line_color="rgba(255,255,255,0.4)")
-
     fig.update_layout(
         title="<b>Channel Capital Reallocation Shifts (Funded vs. Defunded)</b>",
         template="plotly_dark",
@@ -714,4 +611,3 @@ def plot_channel_reallocation_delta(comparison_df: pd.DataFrame) -> go.Figure:
         showlegend=False
     )
     return fig
-

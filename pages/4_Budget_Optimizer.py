@@ -4,9 +4,6 @@ Page 4: Prescriptive Budget Allocation Optimizer & Stochastic Risk Simulator
 
 import streamlit as st
 import pandas as pd
-from src.data_loader import load_marketing_data
-from src.preprocessing import clean_and_enrich_data
-from src.roi import fit_channel_response_curves
 from src.optimizer import MarketingBudgetOptimizer
 from src.simulation import BudgetRiskSimulator
 from src.visualization import (
@@ -15,7 +12,6 @@ from src.visualization import (
     plot_response_curves,
     plot_simulation_distribution
 )
-
 from src.ui_components import render_sidebar_header, ensure_page_data_loaded
 
 st.set_page_config(
@@ -26,11 +22,8 @@ st.set_page_config(
 
 # Ensure dataset is cleanly loaded with animated loader
 df, raw_df = ensure_page_data_loaded(page_title="Prescriptive Budget Optimizer")
-
-# Render Sidebar Branding, Live Telemetry & CSV Ingestion
 render_sidebar_header(active_page_title="Budget Optimizer")
 
-# Custom Styling
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
@@ -75,12 +68,10 @@ Optimize marketing capital allocation across portfolio channels using constraine
 def get_cached_optimizer(df_records_hash: int, _dataframe: pd.DataFrame) -> MarketingBudgetOptimizer:
     return MarketingBudgetOptimizer().fit(_dataframe)
 
-# Fit Optimizer & Learn Curves
 optimizer = get_cached_optimizer(len(df), df)
 curves = optimizer.response_curves
 channels_list = list(curves.keys())
 
-# Sidebar Optimization Controls
 st.sidebar.header("🎯 Prescriptive Budget Controls")
 
 solver_choice = st.sidebar.selectbox(
@@ -160,7 +151,7 @@ else:
     optimal_alloc_dict = dict(zip(comp_df["Channel"], comp_df["Optimized_Spend"]))
     hist_alloc_dict = dict(zip(comp_df["Channel"], comp_df["Current_Spend"]))
 
-    # 1. Side-by-Side KPI Comparison: Current vs. Optimal Allocation
+    # 1. Side-by-Side KPI Comparison
     st.subheader("🚀 Optimization Impact: Current vs. Optimal Allocation")
 
     k1, k2, k3, k4 = st.columns(4)
@@ -216,7 +207,6 @@ else:
         fig_delta = plot_channel_reallocation_delta(comp_df)
         st.plotly_chart(fig_delta, use_container_width=True)
 
-    # Reallocation Data Table & CSV Download
     display_tbl = comp_df[["Channel", "Current_Spend", "Optimized_Spend", "Spend_Delta", "Projected_Revenue", "Projected_ROAS"]]
     st.dataframe(
         display_tbl.style.format({
@@ -254,7 +244,7 @@ else:
 
     st.markdown("---")
 
-    # 4. 5,000-Trial Monte Carlo Risk Simulation (VaR & CVaR)
+    # 4. 5,000-Trial Monte Carlo Risk Simulation
     st.subheader("🎲 Monte Carlo Risk Simulator (5,000 Stochastic Iterations)")
     st.markdown("Empirical revenue distribution under channel execution uncertainty, with 95% Value at Risk (VaR), Conditional VaR (CVaR), and Baseline cutoffs.")
 
@@ -276,7 +266,6 @@ else:
         fig_sim = plot_simulation_distribution(sim_results, baseline_revenue=base1_rev)
         st.plotly_chart(fig_sim, use_container_width=True)
 
-    # Risk Metrics Summary
     r1, r2, r3, r4 = st.columns(4)
     r1.metric("Expected Mean Revenue", f"${sim_results['mean_revenue']:,.0f}")
     ci95_low, ci95_high = sim_results["ci_95"]

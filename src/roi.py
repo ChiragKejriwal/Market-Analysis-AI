@@ -1,10 +1,10 @@
 """
 Marketing ROI, ROAS, and Diminishing Returns Response Modeling Module.
-Fits logarithmic and Hill saturation response curves to model non-linear channel returns
+Fits logarithmic saturation response curves to model non-linear channel returns
 and computes analytical derivatives for marginal ROI estimation.
 """
 
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, Union
 import numpy as np
 import pandas as pd
 from scipy.optimize import curve_fit
@@ -12,7 +12,7 @@ from scipy.optimize import curve_fit
 
 def log_response_curve(spend: Union[np.ndarray, float], alpha: float, beta: float) -> Union[np.ndarray, float]:
     """
-    Logarithmic response curve modeling diminishing marginal returns in marketing economics:
+    Logarithmic response curve modeling diminishing marginal returns:
     Revenue = alpha * ln(1 + beta * Spend)
     """
     return alpha * np.log1p(beta * np.maximum(spend, 0.0))
@@ -23,17 +23,7 @@ def fit_channel_response_curves(
     target_metric: str = "Revenue"
 ) -> Dict[str, Dict[str, float]]:
     """
-    Fits a concave response curve per channel relating Spend -> Revenue/Conversions using scipy.optimize.curve_fit.
-
-    Formula:
-        Return(Spend) = alpha * ln(1 + beta * Spend)
-
-    Args:
-        df: Enriched marketing campaign DataFrame.
-        target_metric: Column to predict as output ('Revenue' or 'Conversions').
-
-    Returns:
-        Dict[str, Dict[str, float]]: Fitted curve parameters (alpha, beta, historical_spend, historical_roas, r_squared) per channel.
+    Fits a concave response curve per channel relating Spend -> Revenue/Conversions.
     """
     if df is None or df.empty or "Channel_Used" not in df.columns or "Spend" not in df.columns:
         return {}
@@ -51,7 +41,6 @@ def fit_channel_response_curves(
 
         if len(spend) >= 3 and total_spend > 0 and total_y > 0:
             try:
-                # Initial parameter heuristic
                 p0 = [max(10.0, total_y / np.log1p(total_spend)), 0.001]
                 popt, _ = curve_fit(
                     log_response_curve,
@@ -63,7 +52,6 @@ def fit_channel_response_curves(
                 )
                 alpha, beta = float(popt[0]), float(popt[1])
 
-                # Calculate R-squared goodness of fit
                 y_pred = log_response_curve(spend, alpha, beta)
                 ss_res = np.sum((y_vals - y_pred) ** 2)
                 ss_tot = np.sum((y_vals - np.mean(y_vals)) ** 2)
@@ -95,19 +83,8 @@ def estimate_marginal_roi(
     curve_params: Dict[str, Dict[str, float]]
 ) -> float:
     """
-    Computes the instantaneous derivative (dReturn / dSpend) at current spend
-    to prove whether adding the next dollar will yield positive incremental returns.
-
-    Derivative:
-        d(Revenue) / d(Spend) = (alpha * beta) / (1 + beta * current_spend)
-
-    Args:
-        channel: Marketing channel name.
-        current_spend: Current allocated spend amount ($).
-        curve_params: Dictionary of fitted channel curve parameters.
-
-    Returns:
-        float: Marginal ROAS (dReturn / dSpend). A value > 1.0 indicates profitable incremental spend.
+    Computes instantaneous derivative (dReturn / dSpend) at current spend.
+    d(Revenue) / d(Spend) = (alpha * beta) / (1 + beta * current_spend)
     """
     if channel not in curve_params or current_spend < 0:
         return 0.0

@@ -1,7 +1,10 @@
+"""
+Causal Marketing Analytics & Budget Optimizer - Main Application Entry
+"""
+
 import streamlit as st
-import pandas as pd
 from src.metrics import calculate_global_kpis
-from src.ui_components import apply_custom_css, render_sidebar_header, ensure_page_data_loaded
+from src.ui_components import render_sidebar_header, ensure_page_data_loaded
 
 st.set_page_config(
     page_title="Causal Marketing Analytics & Budget Optimization",
@@ -12,8 +15,6 @@ st.set_page_config(
 
 # Ensure dataset is cleanly loaded with animated loader
 df, raw_df = ensure_page_data_loaded(page_title="Executive Overview Hub")
-
-# Render Sidebar Branding, Live Telemetry & CSV Ingestion
 render_sidebar_header(active_page_title="Overview Hub")
 
 # Compute high-level summary metrics
@@ -82,7 +83,7 @@ with m_col4:
 
 st.write("")
 
-# 2. Prominent Methodology Callout Note
+# 2. Methodology Callout Note
 st.markdown("""
 <div class="methodology-box">
     <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem;">

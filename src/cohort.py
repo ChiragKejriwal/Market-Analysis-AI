@@ -3,7 +3,7 @@ Cohort Retention and Lifetime Revenue Analytics Module.
 Tracks customer and campaign acquisition cohorts, monthly retention decay, and cumulative revenue matrices.
 """
 
-from typing import Optional, Tuple, Union
+from typing import Tuple
 import numpy as np
 import pandas as pd
 
@@ -12,17 +12,10 @@ def build_acquisition_cohorts(df: pd.DataFrame) -> pd.DataFrame:
     """
     Extracts CohortMonth from Date and tracks cohort conversion rates, retention decay, 
     and cumulative revenue matrices over elapsed monthly periods (M+0 to M+6).
-
-    Args:
-        df: Enriched marketing campaign DataFrame.
-
-    Returns:
-        pd.DataFrame: Tabular cohort performance summary across monthly periods.
     """
     if df is None or df.empty:
         return pd.DataFrame()
 
-    # If df already contains precomputed cohort columns, return directly
     if "CohortMonth" in df.columns and "Period_Index" in df.columns:
         return df.copy()
 
@@ -41,7 +34,6 @@ def build_acquisition_cohorts(df: pd.DataFrame) -> pd.DataFrame:
     if len(months) == 0:
         return pd.DataFrame()
 
-    # Aggregate base metrics by order month
     monthly_stats = data.groupby("Order_Month").agg(
         Active_Campaigns=("Campaign_ID", "count") if "Campaign_ID" in data.columns else ("Date", "count"),
         Conversions=("Conversions", "sum") if "Conversions" in data.columns else ("Clicks", lambda x: int(x.sum() * 0.05)),
@@ -50,7 +42,6 @@ def build_acquisition_cohorts(df: pd.DataFrame) -> pd.DataFrame:
         Revenue=("Revenue", "sum") if "Revenue" in data.columns else ("Date", lambda x: 15000.0)
     ).reset_index()
 
-    # Industry standard B2C / E-commerce customer cohort retention decay curve
     decay_rates = [1.00, 0.48, 0.36, 0.28, 0.23, 0.19, 0.16]
     rows = []
 
@@ -98,13 +89,6 @@ def generate_cohort_matrix(
 ) -> pd.DataFrame:
     """
     Generates a 2D pivot table suitable for heatmap visualization.
-
-    Args:
-        df: Enriched marketing campaign DataFrame or pre-computed cohort summary DataFrame.
-        metric: Metric to pivot ('retention', 'revenue', 'conversions', 'cumulative_revenue').
-
-    Returns:
-        pd.DataFrame: Cohort matrix pivot table (Index = CohortMonth, Columns = M+0, M+1, ...).
     """
     if df is None or df.empty:
         return pd.DataFrame()
@@ -131,7 +115,6 @@ def generate_cohort_matrix(
     elif metric_lower in ["cumulative_revenue", "cum_revenue"]:
         matrix = cohort_df.pivot(index="CohortMonth", columns="Period_Index", values="Cumulative_Revenue")
     else:
-        # Default: Monthly Revenue
         matrix = cohort_df.pivot(index="CohortMonth", columns="Period_Index", values="Revenue")
 
     matrix = matrix.round(1)
@@ -141,10 +124,9 @@ def generate_cohort_matrix(
     return matrix
 
 
-# Alias for backward compatibility
-def build_cohort_matrix(df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
+def build_cohort_matrix(df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.Series]:
     """Compatibility wrapper returning (retention_matrix, cohort_sizes)."""
     retention_mat = generate_cohort_matrix(df, metric="retention")
     raw_convs = generate_cohort_matrix(df, metric="conversions")
-    cohort_size = raw_convs.iloc[:, 0] if not raw_convs.empty else pd.Series()
+    cohort_size = raw_convs.iloc[:, 0] if not raw_convs.empty else pd.Series(dtype=float)
     return retention_mat, cohort_size

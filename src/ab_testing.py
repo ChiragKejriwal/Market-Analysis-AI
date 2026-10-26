@@ -1,9 +1,9 @@
 """
 Causal A/B Testing and Statistical Hypothesis Inference Module.
-Performs Two-Sample Proportion Z-tests, Statistical Power estimations, and automated experiment evaluations.
+Performs Two-Sample Proportion Z-tests, statistical power estimations, and automated experiment evaluations.
 """
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional
 import numpy as np
 import pandas as pd
 from scipy import stats
@@ -27,7 +27,6 @@ def compute_statistical_power(
     p_c = max(1e-5, min(1.0 - 1e-5, p_control))
     p_v = max(1e-5, min(1.0 - 1e-5, p_variant))
 
-    # Cohen's h = 2 * (arcsin(sqrt(p_v)) - arcsin(sqrt(p_c)))
     cohens_h = 2.0 * (np.arcsin(np.sqrt(p_v)) - np.arcsin(np.sqrt(p_c)))
     effect_size = abs(cohens_h)
 
@@ -58,25 +57,6 @@ def run_two_proportion_test(
 ) -> Dict[str, Any]:
     """
     Performs a two-sided Two-Proportion Z-Test comparing Control vs. Treatment variant.
-
-    Computes:
-    - Observed rates (p_control, p_variant)
-    - Absolute lift (p_variant - p_control)
-    - Relative percentage lift ((p_variant - p_control) / p_control * 100)
-    - 95% Confidence Interval for the lift
-    - Z-statistic and p-value
-    - Significance verdict ('Statistically Significant Winner', 'Inconclusive', or 'Underperforming')
-    - Statistical Power estimate at alpha=0.05
-
-    Args:
-        control_conversions: Number of successes in control group.
-        control_impressions: Total sample size in control group.
-        variant_conversions: Number of successes in treatment variant.
-        variant_impressions: Total sample size in treatment variant.
-        alpha: Significance threshold (default 0.05).
-
-    Returns:
-        Dict[str, Any]: Detailed hypothesis test and inference summary.
     """
     if control_impressions <= 0 or variant_impressions <= 0:
         return {"error": "Impression/visitor counts must be strictly positive."}
@@ -87,10 +67,8 @@ def run_two_proportion_test(
     count = np.array([variant_conversions, control_conversions])
     nobs = np.array([variant_impressions, control_impressions])
 
-    # Two-sided proportions z-test
     if variant_conversions == 0 and control_conversions == 0:
-        z_stat = 0.0
-        p_val = 1.0
+        z_stat, p_val = 0.0, 1.0
     else:
         z_stat, p_val = proportions_ztest(count, nobs, alternative="two-sided")
         if np.isnan(z_stat):
@@ -98,29 +76,19 @@ def run_two_proportion_test(
         if np.isnan(p_val):
             p_val = 1.0
 
-    # Absolute and Relative Lift
-    absolute_lift = (p_variant - p_control)
+    absolute_lift = p_variant - p_control
     relative_lift_pct = ((p_variant - p_control) / p_control * 100.0) if p_control > 0 else 0.0
 
-    # Confidence Interval of difference (p_variant - p_control)
     ci_low, ci_high = confint_proportions_2indep(
         variant_conversions, variant_impressions, control_conversions, control_impressions,
         compare="diff", alpha=alpha
     )
 
-    # Statistical Power Calculation
     stat_power = compute_statistical_power(p_control, p_variant, control_impressions, variant_impressions, alpha=alpha)
-
     is_significant = bool(p_val < alpha)
 
-    # Significance Verdict
     if is_significant:
-        if absolute_lift > 0:
-            verdict = "Statistically Significant Winner"
-        elif absolute_lift < 0:
-            verdict = "Underperforming"
-        else:
-            verdict = "Inconclusive"
+        verdict = "Statistically Significant Winner" if absolute_lift > 0 else "Underperforming"
     else:
         verdict = "Inconclusive"
 
@@ -147,16 +115,7 @@ def evaluate_campaign_experiments(
     alpha: float = 0.05
 ) -> pd.DataFrame:
     """
-    Runs automated pairwise A/B statistical comparisons across Campaign_Types or Target_Audiences
-    within each marketing channel to identify winning creatives and segments.
-
-    Args:
-        df: Enriched marketing campaign DataFrame.
-        dimension: Column dimension to compare ('Campaign_Type' or 'Target_Audience').
-        alpha: Significance level threshold (default 0.05).
-
-    Returns:
-        pd.DataFrame: Summary table of all pairwise experiments, lifts, p-values, and verdicts.
+    Runs automated pairwise A/B statistical comparisons across dimension levels within each channel.
     """
     if df is None or df.empty or dimension not in df.columns or "Channel_Used" not in df.columns:
         return pd.DataFrame()
@@ -168,7 +127,6 @@ def evaluate_campaign_experiments(
         if len(unique_groups) < 2:
             continue
 
-        # Use the largest volume group as baseline control
         group_vols = ch_group.groupby(dimension)["Clicks"].sum()
         sorted_groups = group_vols.sort_values(ascending=False).index.tolist()
         control_group = sorted_groups[0]
@@ -219,20 +177,23 @@ def evaluate_campaign_experiments(
     return res_df
 
 
-# Alias for backward compatibility
-run_proportion_ab_test = lambda conversions_a, visitors_a, conversions_b, visitors_b, alpha=0.05, metric_name="Conversion Rate": {
-    "metric_name": metric_name,
-    "variant_a_rate": run_two_proportion_test(conversions_a, visitors_a, conversions_b, visitors_b, alpha)["p_control_pct"],
-    "variant_b_rate": run_two_proportion_test(conversions_a, visitors_a, conversions_b, visitors_b, alpha)["p_variant_pct"],
-    "relative_lift_pct": run_two_proportion_test(conversions_a, visitors_a, conversions_b, visitors_b, alpha)["relative_lift_pct"],
-    "absolute_diff_pct": run_two_proportion_test(conversions_a, visitors_a, conversions_b, visitors_b, alpha)["absolute_lift_pct"],
-    "z_statistic": run_two_proportion_test(conversions_a, visitors_a, conversions_b, visitors_b, alpha)["z_statistic"],
-    "p_value": run_two_proportion_test(conversions_a, visitors_a, conversions_b, visitors_b, alpha)["p_value"],
-    "is_significant": run_two_proportion_test(conversions_a, visitors_a, conversions_b, visitors_b, alpha)["is_significant"],
-    "confidence_interval_pct": run_two_proportion_test(conversions_a, visitors_a, conversions_b, visitors_b, alpha)["confidence_interval_95_pct"],
-    "decision": f"✅ Statistically Significant Winner (Lift: +{run_two_proportion_test(conversions_a, visitors_a, conversions_b, visitors_b, alpha)['relative_lift_pct']}%)" if run_two_proportion_test(conversions_a, visitors_a, conversions_b, visitors_b, alpha)["verdict"] == "Statistically Significant Winner" else "Inconclusive Result",
-    "outcome_status": run_two_proportion_test(conversions_a, visitors_a, conversions_b, visitors_b, alpha)["verdict"]
-}
+def run_proportion_ab_test(conversions_a, visitors_a, conversions_b, visitors_b, alpha=0.05, metric_name="Conversion Rate"):
+    """Backward compatibility wrapper for proportion tests."""
+    res = run_two_proportion_test(conversions_a, visitors_a, conversions_b, visitors_b, alpha)
+    is_win = res["verdict"] == "Statistically Significant Winner"
+    return {
+        "metric_name": metric_name,
+        "variant_a_rate": res["p_control_pct"],
+        "variant_b_rate": res["p_variant_pct"],
+        "relative_lift_pct": res["relative_lift_pct"],
+        "absolute_diff_pct": res["absolute_lift_pct"],
+        "z_statistic": res["z_statistic"],
+        "p_value": res["p_value"],
+        "is_significant": res["is_significant"],
+        "confidence_interval_pct": res["confidence_interval_95_pct"],
+        "decision": f"✅ Statistically Significant Winner (Lift: +{res['relative_lift_pct']}%)" if is_win else "Inconclusive Result",
+        "outcome_status": res["verdict"]
+    }
 
 
 def compare_campaign_variants(

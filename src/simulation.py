@@ -4,7 +4,7 @@ Quantifies portfolio revenue distributions, Value at Risk (VaR 95%), Expected Sh
 and macroeconomic budget sensitivity scenarios.
 """
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 import numpy as np
 import pandas as pd
 from src.roi import fit_channel_response_curves, log_response_curve
@@ -34,24 +34,7 @@ class BudgetRiskSimulator:
     ) -> Dict[str, Any]:
         """
         Simulates portfolio returns under stochastic lognormal market noise:
-            Return_sim = Return(S) * exp(N(-sigma^2 / 2, sigma^2))
-
-        Quantifies:
-        - Expected total revenue & 95% Confidence Interval
-        - 95% Value at Risk (VaR)
-        - 95% Conditional VaR (CVaR / Expected Shortfall)
-        - Probability of outperforming baseline allocation
-
-        Args:
-            allocation_dict: Dict of channel -> spend ($).
-            response_curves: Dict of fitted channel curve parameters.
-            n_simulations: Number of Monte Carlo draws (default 5,000).
-            volatility: Volatility standard deviation factor sigma (default 0.12 or 12%).
-            random_seed: Reproducibility seed.
-            baseline_allocation: Optional dict of channel -> baseline spend ($) for win-rate computation.
-
-        Returns:
-            Dict[str, Any]: Simulated risk and probability metrics.
+        Return_sim = Return(S) * exp(N(-sigma^2 / 2, sigma^2))
         """
         curves = response_curves or self.response_curves
         if not curves or not allocation_dict:
@@ -63,7 +46,6 @@ class BudgetRiskSimulator:
         simulated_base_totals = np.zeros(n_simulations)
         channel_simulations: Dict[str, np.ndarray] = {}
 
-        # Precompute baseline if not provided: equal split or historical
         if baseline_allocation is None:
             tot_spend = sum(allocation_dict.values())
             n_ch = len(curves)
@@ -75,15 +57,12 @@ class BudgetRiskSimulator:
                 beta = curves[channel]["beta"]
 
                 base_rev = log_response_curve(spend, alpha, beta)
-                
-                # Uncorrelated channel shocks with mean 1.0
                 shocks = rng.lognormal(mean=-0.5 * (volatility ** 2), sigma=volatility, size=n_simulations)
                 channel_rev = base_rev * shocks
 
                 channel_simulations[channel] = channel_rev
                 simulated_opt_totals += channel_rev
 
-        # Simulate baseline portfolio under identical market conditions
         for channel, b_spend in baseline_allocation.items():
             if channel in curves and b_spend > 0:
                 alpha = curves[channel]["alpha"]
@@ -96,24 +75,16 @@ class BudgetRiskSimulator:
         std_rev = float(np.std(simulated_opt_totals))
         median_rev = float(np.percentile(simulated_opt_totals, 50))
 
-        # 95% Confidence Interval (2.5th to 97.5th percentile)
         p025 = float(np.percentile(simulated_opt_totals, 2.5))
         p975 = float(np.percentile(simulated_opt_totals, 97.5))
-
-        # 90% Confidence Interval (5th to 95th percentile)
         p05 = float(np.percentile(simulated_opt_totals, 5.0))
         p95 = float(np.percentile(simulated_opt_totals, 95.0))
 
-        # 95% Value at Risk (Max expected revenue shortfall at 5% tail relative to mean)
         var_95 = max(0.0, mean_rev - p05)
-
-        # 95% Conditional VaR (Expected Shortfall - average loss beyond 5th percentile)
         tail_draws = simulated_opt_totals[simulated_opt_totals <= p05]
         cvar_95 = max(0.0, mean_rev - float(np.mean(tail_draws))) if len(tail_draws) > 0 else var_95
 
-        # Probability of outperforming baseline spend allocation
         prob_outperforming = float(np.mean(simulated_opt_totals > simulated_base_totals) * 100.0)
-
         total_budget = sum(allocation_dict.values())
         expected_roas = (mean_rev / total_budget) if total_budget > 0 else 0.0
 
@@ -141,15 +112,6 @@ class BudgetRiskSimulator:
     ) -> pd.DataFrame:
         """
         Evaluates portfolio resilience to macroeconomic marketing budget cuts or expansions.
-
-        Args:
-            base_budget: Benchmark total budget ($).
-            allocation_strategy: Dict of channel -> baseline spend ($).
-            response_curves: Dict of fitted channel curve parameters.
-            budget_steps: List of percentage adjustments (e.g. [-0.20, -0.10, 0.0, +0.10, +0.20]).
-
-        Returns:
-            pd.DataFrame: Budget scaling scenario table with projected revenue and incremental ROAS.
         """
         curves = response_curves or self.response_curves
         if not curves or not allocation_strategy:
@@ -160,10 +122,8 @@ class BudgetRiskSimulator:
 
         total_alloc = sum(allocation_strategy.values()) or 1.0
         shares = {c: s / total_alloc for c, s in allocation_strategy.items()}
-
         scenarios = []
 
-        # Baseline revenue at 0.0 delta
         base_rev = sum(
             log_response_curve(shares[c] * base_budget, curves[c]["alpha"], curves[c]["beta"])
             for c in shares if c in curves
@@ -193,7 +153,6 @@ class BudgetRiskSimulator:
         return pd.DataFrame(scenarios)
 
 
-# Module-level functions
 def simulate_budget_allocation(
     allocation_dict: Dict[str, float],
     response_curves: Dict[str, Dict[str, float]],

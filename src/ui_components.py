@@ -1,95 +1,34 @@
 """
 Shared UI Components & Styling Module for Causal Marketing Analytics Platform.
-Provides rich sidebar branding, dataset telemetry cards, custom CSS, CSV schema modal, and animated loaders.
+Provides sidebar branding, custom CSS, CSV schema modal, and animated loaders.
 """
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 import streamlit as st
 import pandas as pd
-import numpy as np
 from src.data_loader import load_marketing_data
 from src.preprocessing import clean_and_enrich_data
 from src.validator import validate_marketing_data, REQUIRED_COLUMNS
 
 MANDATORY_COLUMNS: Dict[str, Dict[str, str]] = {
-    "Date": {
-        "type": "YYYY-MM-DD (Date)",
-        "desc": "Transaction or campaign attribution date.",
-        "example": "2024-03-15"
-    },
-    "Campaign_Type": {
-        "type": "String",
-        "desc": "Strategy format (Search, Social Media, Email, Display, Influencer, Video).",
-        "example": "Search"
-    },
-    "Channel_Used": {
-        "type": "String",
-        "desc": "Marketing channel (Google Ads, Facebook, Instagram, YouTube, Email, Organic).",
-        "example": "Google Ads"
-    },
-    "Clicks": {
-        "type": "Integer (>= 0)",
-        "desc": "Total user clicks recorded.",
-        "example": "1250"
-    },
-    "Impressions": {
-        "type": "Integer (>= 0)",
-        "desc": "Total ad impressions or reach (Clicks <= Impressions).",
-        "example": "45000"
-    },
-    "Acquisition_Cost": {
-        "type": "Numeric / Currency ($)",
-        "desc": "Average cost per acquisition (CPA/CAC).",
-        "example": "35.50"
-    },
-    "ROI": {
-        "type": "Numeric (>= 0)",
-        "desc": "Return on investment multiple (e.g. 2.50 = 250% return).",
-        "example": "2.40"
-    },
-    "Conversion_Rate": {
-        "type": "Numeric (0.01-1.0 or 1-100%)",
-        "desc": "Conversion rate from click to purchase.",
-        "example": "0.045"
-    }
+    "Date": {"type": "YYYY-MM-DD (Date)", "desc": "Transaction or campaign attribution date.", "example": "2024-03-15"},
+    "Campaign_Type": {"type": "String", "desc": "Strategy format (Search, Social Media, Email, Display, Influencer, Video).", "example": "Search"},
+    "Channel_Used": {"type": "String", "desc": "Marketing channel (Google Ads, Facebook, Instagram, YouTube, Email, Organic).", "example": "Google Ads"},
+    "Clicks": {"type": "Integer (>= 0)", "desc": "Total user clicks recorded.", "example": "1250"},
+    "Impressions": {"type": "Integer (>= 0)", "desc": "Total ad impressions or reach (Clicks <= Impressions).", "example": "45000"},
+    "Acquisition_Cost": {"type": "Numeric / Currency ($)", "desc": "Average cost per acquisition (CPA/CAC).", "example": "35.50"},
+    "ROI": {"type": "Numeric (>= 0)", "desc": "Return on investment multiple (e.g. 2.50 = 250% return).", "example": "2.40"},
+    "Conversion_Rate": {"type": "Numeric (0.01-1.0 or 1-100%)", "desc": "Conversion rate from click to purchase.", "example": "0.045"}
 }
 
 OPTIONAL_COLUMNS: Dict[str, Dict[str, str]] = {
-    "Campaign_ID": {
-        "type": "String / Integer",
-        "desc": "Unique campaign identifier code.",
-        "example": "CMP_00101"
-    },
-    "Company": {
-        "type": "String",
-        "desc": "Brand or operating entity name.",
-        "example": "Nexus Commerce"
-    },
-    "Target_Audience": {
-        "type": "String",
-        "desc": "Target demographic or persona segment.",
-        "example": "Tech Professionals"
-    },
-    "Duration": {
-        "type": "String",
-        "desc": "Campaign execution window.",
-        "example": "30 Days"
-    },
-    "Location": {
-        "type": "String",
-        "desc": "Geographic targeting location.",
-        "example": "California"
-    },
-    "Language": {
-        "type": "String",
-        "desc": "Campaign creative language.",
-        "example": "English"
-    },
-    "Engagement_Score": {
-        "type": "Numeric (1-10)",
-        "desc": "Content engagement score index.",
-        "example": "8.4"
-    }
+    "Campaign_ID": {"type": "String / Integer", "desc": "Unique campaign identifier code.", "example": "CMP_00101"},
+    "Company": {"type": "String", "desc": "Brand or operating entity name.", "example": "Nexus Commerce"},
+    "Target_Audience": {"type": "String", "desc": "Target demographic or persona segment.", "example": "Tech Professionals"},
+    "Duration": {"type": "String", "desc": "Campaign execution window.", "example": "30 Days"},
+    "Location": {"type": "String", "desc": "Geographic targeting location.", "example": "California"},
+    "Language": {"type": "String", "desc": "Campaign creative language.", "example": "English"},
+    "Engagement_Score": {"type": "Numeric (1-10)", "desc": "Content engagement score index.", "example": "8.4"}
 }
 
 COLUMN_SYNONYMS: Dict[str, List[str]] = {
@@ -112,7 +51,7 @@ COLUMN_SYNONYMS: Dict[str, List[str]] = {
 
 
 def get_sample_template_df() -> pd.DataFrame:
-    """Generates a clean 5-row sample template DataFrame matching standard schema."""
+    """Generates a sample template DataFrame matching standard schema."""
     return pd.DataFrame([
         {
             "Campaign_ID": "CMP_00001",
@@ -214,7 +153,6 @@ def inspect_uploaded_df(uploaded_df: pd.DataFrame) -> Tuple[bool, Optional[pd.Da
     normalized_actual = {str(c).strip().lower().replace(" ", "_").replace("-", "_"): c for c in actual_cols}
 
     for canonical, synonyms in COLUMN_SYNONYMS.items():
-        found = False
         if canonical in actual_cols:
             col_mapping[canonical] = canonical
             continue
@@ -222,7 +160,6 @@ def inspect_uploaded_df(uploaded_df: pd.DataFrame) -> Tuple[bool, Optional[pd.Da
             syn_norm = syn.lower().replace(" ", "_").replace("-", "_")
             if syn_norm in normalized_actual:
                 col_mapping[normalized_actual[syn_norm]] = canonical
-                found = True
                 break
 
     mapped_df = uploaded_df.rename(columns=col_mapping)
@@ -233,7 +170,6 @@ def inspect_uploaded_df(uploaded_df: pd.DataFrame) -> Tuple[bool, Optional[pd.Da
         errors = [f"Missing required columns: {', '.join(missing_mandatory)}"]
         return False, mapped_df, errors, [], col_mapping
 
-    # Run domain validation
     is_valid, hard_errs, soft_warns = validate_marketing_data(mapped_df, raise_on_error=False)
     return is_valid, mapped_df, hard_errs, soft_warns, col_mapping
 
@@ -248,7 +184,6 @@ def apply_custom_css():
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
         }
 
-        /* Sidebar Styling */
         [data-testid="stSidebar"] {
             background: linear-gradient(180deg, #0B0F19 0%, #0F172A 50%, #0B0F19 100%);
             border-right: 1px solid rgba(255, 255, 255, 0.08);
@@ -277,42 +212,9 @@ def apply_custom_css():
             margin-bottom: 0.6rem;
         }
 
-        .sidebar-metric-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 0.5rem;
-            margin-top: 0.5rem;
-            margin-bottom: 0.75rem;
-        }
-
-        .sidebar-mini-metric {
-            background: rgba(15, 23, 42, 0.65);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 8px;
-            padding: 0.5rem 0.65rem;
-            text-align: center;
-        }
-
-        .sidebar-mini-metric-label {
-            font-size: 0.68rem;
-            color: #94A3B8;
-            font-weight: 500;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-        }
-
-        .sidebar-mini-metric-val {
-            font-size: 0.95rem;
-            color: #F8FAFC;
-            font-weight: 700;
-            margin-top: 2px;
-        }
-
-        /* Glass Cards */
         .glass-card {
             background: rgba(30, 41, 59, 0.6);
             backdrop-filter: blur(14px);
-            -webkit-backdrop-filter: blur(14px);
             border: 1px solid rgba(255, 255, 255, 0.08);
             border-radius: 16px;
             padding: 1.5rem;
@@ -352,7 +254,6 @@ def apply_custom_css():
             letter-spacing: -0.02em;
         }
 
-        /* Chips & Badges */
         .card-badge {
             display: inline-block;
             padding: 0.25rem 0.65rem;
@@ -368,7 +269,6 @@ def apply_custom_css():
         .badge-rose { background: rgba(244, 63, 94, 0.18); color: #FB7185; border: 1px solid rgba(244, 63, 94, 0.4); }
         .badge-amber { background: rgba(245, 158, 11, 0.18); color: #FBBF24; border: 1px solid rgba(245, 158, 11, 0.4); }
 
-        /* A/B Testing Verdict Cards */
         .ab-verdict-card {
             border-radius: 14px;
             padding: 1.25rem 1.5rem;
@@ -400,7 +300,6 @@ def apply_custom_css():
             margin-bottom: 0.75rem;
         }
 
-        /* Animated Loader Styles */
         @keyframes spinRing {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
@@ -453,8 +352,7 @@ def apply_custom_css():
 
 def ensure_page_data_loaded(page_title: str = "") -> Tuple[pd.DataFrame, pd.DataFrame]:
     """
-    Ensures that cleaned and raw marketing datasets are completely loaded before rendering.
-    Displays an elegant animated glassmorphic loader with progress feedback if loading from disk.
+    Ensures that cleaned and raw marketing datasets are preloaded before rendering.
     """
     apply_custom_css()
 
@@ -471,11 +369,11 @@ def ensure_page_data_loaded(page_title: str = "") -> Tuple[pd.DataFrame, pd.Data
                 Initializing Marketing Intelligence Engine
             </h2>
             <p style="color: #94A3B8; font-size: 0.95rem; margin-bottom: 1.25rem; line-height: 1.6;">
-                Preparing high-performance marketing attribution models, calculating ROAS benchmarks, and synchronizing channel metrics for <strong>{page_title or 'Executive Suite'}</strong>...
+                Preparing marketing attribution models, calculating ROAS benchmarks, and synchronizing channel metrics for <strong>{page_title or 'Executive Suite'}</strong>...
             </p>
             <div>
                 <span class="loader-step-pill">
-                    ⚡ Loading 200k+ Transactions &amp; Normalizing Channels...
+                    ⚡ Loading Dataset &amp; Normalizing Channels...
                 </span>
             </div>
         </div>
@@ -495,8 +393,7 @@ def show_schema_modal():
     """Renders the comprehensive CSV Schema Guide and downloadable sample template."""
     st.markdown("""
     ### 📁 Marketing Data Ingestion Standard
-    To ensure seamless processing through attribution models, causal A/B testing, and non-linear budget optimization, 
-    your uploaded CSV should adhere to the following schema specification.
+    Upload standard CSV files matching the schema specification below.
     """)
 
     sample_df = get_sample_template_df()
@@ -540,10 +437,8 @@ def show_schema_modal():
 
 
 def render_sidebar_header(active_page_title: str = ""):
-    """Renders the unified sidebar brand header, dataset telemetry, template button, and CSV uploader."""
-    clean_df = st.session_state.get("df")
-
-    st.sidebar.markdown(f"""
+    """Renders the unified sidebar brand header, template button, and CSV uploader."""
+    st.sidebar.markdown("""
     <div class="sidebar-brand-box">
         <div class="sidebar-status-pill">
             <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#34D399;"></span>
@@ -567,7 +462,7 @@ def render_sidebar_header(active_page_title: str = ""):
     uploaded_file = st.sidebar.file_uploader(
         "Upload Custom Marketing CSV",
         type=["csv"],
-        help="Upload marketing records. Accepted columns and synonyms can be viewed in the Schema Guide above."
+        help="Upload marketing records matching the required schema."
     )
 
     if uploaded_file is not None:
